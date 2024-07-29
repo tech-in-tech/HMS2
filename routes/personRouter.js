@@ -8,9 +8,12 @@ const router = express.Router();
 const Person = require('../models/person');
 const { rearg } = require('lodash');
 
+// Import {jwtAuthMiddleware,generateToken} from jwt.js file
+const { jwtAuthMiddleware, generateToken } = require('./../jwt');
+const { json } = require('body-parser');
 
 //* Define a POST route at the endpoint '/person' to save person data
-router.post('/', async (req, res) => {
+router.post('/signup', async (req, res) => {
   try {
     //* Extract the data from the request body
     const data = req.body
@@ -20,8 +23,18 @@ router.post('/', async (req, res) => {
     const response = await newPerson.save();
     //* Log a message indicating that the data was saved successfully
     console.log('Person data added successfully');
-    //* Send a successful response back to the client with the saved data
-    res.status(200).json(response);
+
+    const payload = {
+      id : response.id,
+      username : response.username
+    }
+
+    // Generate token with the help of response.username and response.is(payload)
+    const token = generateToken(payload)
+    console.log("token is : ", token);
+
+    //* Send a successful response and token back to the client with the saved data
+    res.status(200).json({ response: response, token: token });
   } catch (error) {
     //* Log the error to the console for debugging purposes
     console.log(error);
@@ -31,8 +44,37 @@ router.post('/', async (req, res) => {
 })
 
 
+// * Login route
+router.post("/login",async (req,res)=>{
+  try {
+    // * Extract username and password from req.body
+    const {username,password} = req.body;
+    // *find the user by username
+    const user = await Person.findOne({username:username});
+    // * If user does not exist or password does not match, return error
+    if(!user  || !(await user.comparePassword(password))){
+      return res.status(401).json({error:'Invalid username or password'});
+    }
+
+    // if user is present and password is correct then generate token
+    const payload={
+      id:user.id,
+      username:user.username
+    }
+    // * create token
+    const token = generateToken(payload);
+    // ?return token as response;
+    res.json({token});
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({error:"Internal server error"});
+  }
+})
+
+
 //* Define a GET route at the endpoint '/person' to get all persons data
-router.get('/', async (req, res) => {
+router.get('/',jwtAuthMiddleware, async (req, res) => {
   try {
     //* Fetch all documents from the 'Person' collection in the database
     const data = await Person.find();
@@ -45,6 +87,25 @@ router.get('/', async (req, res) => {
     console.log(error)
     //* Send an error response back to the client with a status code 500 and an error message
     res.status(500).json({ error: "INTERNAL SERVER ERROR" });
+  }
+})
+
+// Profile route
+router.get('/profile',jwtAuthMiddleware,async(req,res)=>{
+  try {
+    // fetch user data from token
+    const userData = req.user;
+    console.log("Userdata : ",userData);
+    // fetch userId from userdata
+    const userId = userData.id;
+    // find the person by userid
+    const user = await Person.findById(userId);
+    // send ok status
+    res.status(200).json({user});
+  } catch (error) {
+    // in case of some error
+    console.log(err);
+    res.status(500),json({error:"INTERNAL SERVER ERROR"});
   }
 })
 
@@ -109,7 +170,7 @@ router.put('/:id', async (req, res) => {
 
 
 // *Define the DELETE route to delete a person's data by their ID at endpoint /person/:id 
-router.delete('/:id',async (req,res)=>{
+router.delete('/:id', async (req, res) => {
   try {
     //* Extract the person's ID from the URL parameters
     const personId = req.params.id;
@@ -122,11 +183,11 @@ router.delete('/:id',async (req,res)=>{
     //* Log a message indicating that the person's data was deleted
     console.log(`Person data of ID : ${personId} is deleted`);
     //* Send the JSON response with a 200 status code and message "Person Deleted Successfully"
-    res.status(200).json({message:"Person Deleted Successfully"})
+    res.status(200).json({ message: "Person Deleted Successfully" })
   } catch (error) {
-     //* Log any errors that occur and send a 500 response
-     console.log(error);
-     res.status(500).json({ error: "INTERNAL SERVER ERROR" });
+    //* Log any errors that occur and send a 500 response
+    console.log(error);
+    res.status(500).json({ error: "INTERNAL SERVER ERROR" });
   }
 })
 

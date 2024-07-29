@@ -80,7 +80,7 @@ app.get('/',(req, res) => {
 
 // * Import personRouter file
 const personRoutes = require('./routes/personRouter');
-app.use('/person',localAuthMiddleware, personRoutes);
+app.use('/person', personRoutes);
 
 
 // * Import menuRouter file
